@@ -1,0 +1,115 @@
+---
+- hosts: localhost
+  gather_facts: false
+
+  vars:
+    esxi_host: "192.168.0.2"
+    mydatastore: "datastore2"
+    template_vmname: "RHEL84"
+    guest_OS: "RHEL_8_64"
+    hardware_version: "VMX_19"
+
+  tasks:
+    - name: include credentials
+      include_vars: credentials.yml
+      no_log: true
+
+    - name: Check a new VM doesn't exist in vCenter
+      vmware.vmware_rest.vcenter_vm_info:
+        vcenter_hostname: "{{ vcenter_hostname }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_validate_certs: false
+        filter_names:
+          - "{{ vmname }}"
+      register: check_vm_result
+
+    - name: Fail if exists
+      fail:
+        msg: "{{ vmname }} already exists"
+      when: check_vm_result.value | length >= 1
+
+    - name: Gather a template vm info
+      vmware.vmware_rest.vcenter_vm_info:
+        vcenter_hostname: "{{ vcenter_hostname }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_validate_certs: false
+        filter_names:
+          - "{{ template_vmname }}"
+      register: template_vm_info
+
+    - name: Gather host info
+      vmware.vmware_rest.vcenter_host_info:
+        vcenter_hostname: "{{ vcenter_hostname }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_validate_certs: false
+        names:
+          - "{{ esxi_host }}"
+      register: my_host
+
+    - name: Gather datastore info
+      vmware.vmware_rest.vcenter_datastore_info:
+        vcenter_hostname: "{{ vcenter_hostname }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_validate_certs: false
+        names:
+          - "{{ mydatastore }}"
+      register: my_datastore
+
+    - name: Gather folder info
+      vmware.vmware_rest.vcenter_folder_info:
+        vcenter_hostname: "{{ vcenter_hostname }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_validate_certs: false
+        filter_type: VIRTUAL_MACHINE
+        filter_names:
+          - vm
+      register: my_folder
+
+    - name: Clone a new VM
+      vmware.vmware_rest.vcenter_vm:
+        vcenter_hostname: "{{ vcenter_hostname }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_validate_certs: false
+        placement:
+          host: "{{ my_host.value[0].host }}"
+          datastore: "{{ my_datastore.value[0].datastore }}"
+          folder: "{{ my_folder.value[0].folder }}"
+        name: "{{ vmname }}"
+        source: "{{ template_vm_info.value[0].vm }}"
+        guest_OS: "{{ guest_OS }}"
+        hardware_version: "{{ hardware_version }}"
+        cpu:
+          count: 2
+        memory:
+          size_MiB: 4096
+        nics:
+          - start_connected: true
+        state: clone
+      register: new_vm
+
+    - name: Gather a created vm info
+      vmware.vmware_rest.vcenter_vm_info:
+        vcenter_hostname: "{{ vcenter_hostname }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_validate_certs: false
+        filter_names:
+          - "{{ vmname }}"
+      register: new_vm_info
+
+    - name: Power on the new VM
+      vmware.vmware_rest.vcenter_vm_power:
+        vcenter_hostname: "{{ vcenter_hostname }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        vcenter_validate_certs: false
+        state: start
+        vm: "{{ new_vm_info.value[0].vm }}"
+      register: power_on_result
+
