@@ -90,6 +90,7 @@
           size_MiB: 4096
         nics:
           - start_connected: true
+        power_on: true
         state: clone
       register: new_vm
 
@@ -103,13 +104,19 @@
           - "{{ vmname }}"
       register: new_vm_info
 
-    - name: Power on the new VM
-      vmware.vmware_rest.vcenter_vm_power:
+    - name: Get guest power information
+      vmware.vmware_rest.vcenter_vm_power_info:
         vcenter_hostname: "{{ vcenter_hostname }}"
         vcenter_username: "{{ vcenter_username }}"
         vcenter_password: "{{ vcenter_password }}"
         vcenter_validate_certs: false
-        state: start
         vm: "{{ new_vm_info.value[0].vm }}"
       register: power_on_result
+      until: power_on_result.value.state == "POWERED_ON"
+      retries: 10
+      delay: 10
+
+    - name: debug
+      debug:
+        var: power_on_result
 
