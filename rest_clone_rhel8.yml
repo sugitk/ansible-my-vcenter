@@ -113,7 +113,7 @@
         vm: "{{ new_vm_info.value[0].vm }}"
       register: power_on_result
       until: power_on_result.value.state == "POWERED_ON"
-      retries: 10
+      retries: 30
       delay: 10
 
     - name: debug
