@@ -5,7 +5,7 @@
   vars:
     esxi_host: "192.168.0.2"
     mydatastore: "datastore2"
-    template_vmname: "RHEL87"
+    template_vmname: "RHEL88"
     guest_OS: "RHEL_8_64"
     hardware_version: "VMX_19"
 
